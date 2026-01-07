@@ -1,5 +1,5 @@
 const express = require('express');
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const cors = require('cors');
 const app = express();
 
@@ -79,6 +79,55 @@ async function run() {
       const query = { email: email };
       const user = await usersCollection.findOne(query);
       res.send({ role: user?.role || 'user' });
+    });
+
+    //payment related api
+    app.post('/create-checkout-session', async (req, res) => {
+      try {
+        const userInfo = req.body;
+
+        const session = await stripe.checkout.sessions.create({
+          payment_method_types: ['card'],
+          mode: 'payment',
+          line_items: [
+            {
+              price_data: {
+                currency: 'usd',
+                product_data: {
+                  name: 'Sapiens.io Premium Membership',
+                },
+                unit_amount: 1200,
+              },
+              quantity: 1,
+            },
+          ],
+          customer_email: userInfo.email,
+
+          success_url: `${process.env.SITE_DOMAIN}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+          cancel_url: `${process.env.SITE_DOMAIN}/payment-cancel`,
+          metadata: {
+            userId: userInfo.userId,
+          },
+        });
+
+        res.json({ url: session.url });
+      } catch (error) {
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    app.patch('/payment-success', async (req, res) => {
+      const { session_id } = req.body;
+      const session = await stripe.checkout.sessions.retrieve(session_id);
+      const userId = session.metadata.userId;
+      const query = { _id: new ObjectId(userId) };
+      const user = await usersCollection.findOne(query);
+      if (user && !user.isPremium) {
+        await usersCollection.updateOne(query, { $set: { isPremium: true } });
+        res.json({ success: true });
+      } else {
+        res.json({ success: false });
+      }
     });
   } finally {
   }
