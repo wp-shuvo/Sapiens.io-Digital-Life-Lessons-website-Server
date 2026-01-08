@@ -27,6 +27,8 @@ async function run() {
     const db = client.db('sapiensDB');
     const usersCollection = db.collection('users');
     const lessonsCollection = db.collection('lessons');
+    const commentsCollection = db.collection('comments');
+    const reportsCollection = db.collection('lessonReports');
 
     //post user api
 
@@ -85,11 +87,54 @@ async function run() {
       res.send(result);
     });
 
-    //get all lessons
+    // Get all lessons with premium  (email)
     app.get('/lessons', async (req, res) => {
-      const result = await lessonsCollection.find().toArray();
+      try {
+        const userEmail = req.query.userId;
+        let isPremium = false;
+
+        if (userEmail) {
+          const user = await usersCollection.findOne({ email: userEmail });
+          isPremium = user?.isPremium || false;
+        }
+
+        // Get all lessons
+        const lessons = await lessonsCollection.find({}).toArray();
+
+        const filteredLessons = lessons.map(lesson => {
+          if (lesson.accessLevel === 'Premium' && !isPremium) {
+            return {
+              ...lesson,
+              locked: true,
+              description: '',
+              image: '',
+            };
+          }
+          return { ...lesson, locked: false };
+        });
+
+        res.send(filteredLessons);
+      } catch (error) {
+        res.send({ error: 'Failed to fetch lessons' });
+      }
+    });
+
+    //get one lesson by id
+    app.get('/lessons/:id', async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await lessonsCollection.findOne(query);
       res.send(result);
     });
+
+    //get lesson by author email
+    app.get('/lessons/author/:email', async (req, res) => {
+      const email = req.params.email;
+      const query = { authorEmail: email };
+      const result = await lessonsCollection.find(query).toArray();
+      res.send(result);
+    });
+
     //payment related api
     app.post('/create-checkout-session', async (req, res) => {
       try {
