@@ -26,6 +26,9 @@ async function run() {
     await client.connect();
     const db = client.db('sapiensDB');
     const usersCollection = db.collection('users');
+    const lessonsCollection = db.collection('lessons');
+
+    //post user api
 
     app.post('/users', async (req, res) => {
       const user = req.body;
@@ -40,14 +43,6 @@ async function run() {
       }
 
       const result = await usersCollection.insertOne(user);
-      res.send(result);
-    });
-
-    //get one user by email
-    app.get('/users/:id', async (req, res) => {
-      const id = req.params.id;
-      const query = { _id: new ObjectId(id) };
-      const result = await usersCollection.findOne(query);
       res.send(result);
     });
 
@@ -81,6 +76,20 @@ async function run() {
       res.send({ role: user?.role || 'user' });
     });
 
+    //API for lesson api
+    //post lesson api
+    app.post('/lessons', async (req, res) => {
+      const lesson = req.body;
+      const lessonsCollection = db.collection('lessons');
+      const result = await lessonsCollection.insertOne(lesson);
+      res.send(result);
+    });
+
+    //get all lessons
+    app.get('/lessons', async (req, res) => {
+      const result = await lessonsCollection.find().toArray();
+      res.send(result);
+    });
     //payment related api
     app.post('/create-checkout-session', async (req, res) => {
       try {
