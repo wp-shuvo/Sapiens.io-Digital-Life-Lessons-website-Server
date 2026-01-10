@@ -135,6 +135,43 @@ async function run() {
       res.send(result);
     });
 
+    //get related lessons api
+    app.get('/lessons/related/:id', async (req, res) => {
+      const lesson = await lessonsCollection.findOne({
+        _id: new ObjectId(req.params.id),
+      });
+
+      const related = await lessonsCollection
+        .find({
+          _id: { $ne: lesson._id },
+          $or: [
+            { category: lesson.category },
+            { emotionalTone: lesson.emotionalTone },
+          ],
+        })
+        .limit(6)
+        .toArray();
+
+      res.send(related);
+    });
+    //comments api
+    app.post('/comments', async (req, res) => {
+      const comment = {
+        ...req.body,
+        createdAt: new Date(),
+      };
+      const result = await commentsCollection.insertOne(comment);
+      res.send(result);
+    });
+
+    app.get('/comments/:lessonId', async (req, res) => {
+      const result = await commentsCollection
+        .find({ lessonId: req.params.lessonId })
+        .sort({ createdAt: -1 })
+        .toArray();
+      res.send(result);
+    });
+
     //payment related api
     app.post('/create-checkout-session', async (req, res) => {
       try {
