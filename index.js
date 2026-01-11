@@ -164,12 +164,56 @@ async function run() {
       res.send(result);
     });
 
+    //get comments by lessonId
     app.get('/comments/:lessonId', async (req, res) => {
       const result = await commentsCollection
         .find({ lessonId: req.params.lessonId })
         .sort({ createdAt: -1 })
         .toArray();
       res.send(result);
+    });
+
+    //save lesson
+
+    app.post('/lessons/save', async (req, res) => {
+      const { lessonId, userEmail } = req.body;
+      const user = await usersCollection.findOne({ email: userEmail });
+      if (!user) {
+        return res.status(404).send({ error: 'User not found' });
+      }
+      const updatedUser = await usersCollection.updateOne(
+        { email: userEmail },
+        { $addToSet: { savedLessons: lessonId } }
+      );
+      res.send(updatedUser);
+    });
+
+    //get save lessons by user email
+    app.get('/lessons/save/:email', async (req, res) => {
+      const email = req.params.email;
+      const user = await usersCollection.findOne({ email });
+
+      if (!user || !user.savedLessons || user.savedLessons.length === 0) {
+        return res.send([]);
+      }
+
+      const lessonObjectIds = user.savedLessons.map(id => new ObjectId(id));
+
+      const savedLessons = await lessonsCollection
+        .find({ _id: { $in: lessonObjectIds } })
+        .toArray();
+
+      res.send(savedLessons);
+    });
+
+    //report lesson api
+    app.post('/lessons/report', async (req, res) => {
+      const report = {
+        ...req.body,
+        createdAt: new Date(),
+      };
+      await reportsCollection.insertOne(report);
+      res.send({ success: true });
     });
 
     //payment related api
