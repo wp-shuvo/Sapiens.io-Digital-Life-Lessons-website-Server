@@ -98,7 +98,6 @@ async function run() {
           isPremium = user?.isPremium || false;
         }
 
-        // Get all lessons
         const lessons = await lessonsCollection.find({}).toArray();
 
         const filteredLessons = lessons.map(lesson => {
@@ -127,11 +126,14 @@ async function run() {
       res.send(result);
     });
 
-    //get lesson by author email
+    //get lesson by author email recent posts first
     app.get('/lessons/author/:email', async (req, res) => {
       const email = req.params.email;
       const query = { authorEmail: email };
-      const result = await lessonsCollection.find(query).toArray();
+      const result = await lessonsCollection
+        .find(query)
+        .sort({ createdAt: -1 })
+        .toArray();
       res.send(result);
     });
 
@@ -154,6 +156,7 @@ async function run() {
 
       res.send(related);
     });
+
     //comments api
     app.post('/comments', async (req, res) => {
       const comment = {
@@ -207,6 +210,7 @@ async function run() {
     });
 
     //update lesson
+
     app.patch('/lessons/:id', async (req, res) => {
       const id = req.params.id;
       const filter = { _id: new ObjectId(id) };
@@ -249,6 +253,57 @@ async function run() {
       };
       await reportsCollection.insertOne(report);
       res.send({ success: true });
+    });
+
+    //get report by lessonId
+    app.get('/lessons/report/:lessonId', async (req, res) => {
+      const result = await reportsCollection
+        .find({ lessonId: req.params.lessonId })
+        .toArray();
+      res.send(result);
+    });
+
+    app.get('/dashboard/activity', async (req, res) => {
+      const { email } = req.query;
+
+      if (!email) {
+        return res.status(400).send({ error: 'Email is required' });
+      }
+
+      try {
+        const data = await lessonsCollection
+          .aggregate([
+            { $match: { authorEmail: email, createdAt: { $exists: true } } },
+
+            {
+              $addFields: {
+                created: { $toDate: '$createdAt' }, // convert safely
+              },
+            },
+
+            {
+              $addFields: {
+                week: { $isoWeek: '$created' },
+                year: { $year: '$created' },
+              },
+            },
+
+            {
+              $group: {
+                _id: { year: '$year', week: '$week' },
+                total: { $sum: 1 },
+              },
+            },
+
+            { $sort: { '_id.year': 1, '_id.week': 1 } },
+          ])
+          .toArray();
+
+        res.send(data);
+      } catch (err) {
+        console.error(err);
+        res.status(500).send({ error: 'Failed to load activity data' });
+      }
     });
 
     //payment related api
@@ -308,7 +363,7 @@ async function run() {
 run().catch(console.dir);
 
 app.get('/', (req, res) => {
-  res.send('Zap Shift server is runing!');
+  res.send('Sapiens.io - life lesson server is runing!');
 });
 
 app.listen(port, () => {
