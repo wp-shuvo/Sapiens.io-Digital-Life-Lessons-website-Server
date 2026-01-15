@@ -206,6 +206,41 @@ async function run() {
       res.send(savedLessons);
     });
 
+    //update lesson
+    app.patch('/lessons/:id', async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const updatedDoc = {
+        $set: {
+          ...req.body,
+        },
+      };
+      const result = await lessonsCollection.updateOne(filter, updatedDoc);
+      res.send(result);
+    });
+
+    //remove lesson
+    app.delete('/lessons/:id', async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await lessonsCollection.deleteOne(query);
+      res.send(result);
+    });
+
+    //remove save one lesson
+    app.delete('/lessons/save', async (req, res) => {
+      const { lessonId, userEmail } = req.body;
+      const user = await usersCollection.findOne({ email: userEmail });
+      if (!user) {
+        return res.send({ error: 'User not found' });
+      }
+      const updatedUser = await usersCollection.updateOne(
+        { email: userEmail },
+        { $pull: { savedLessons: lessonId } }
+      );
+      res.send(updatedUser);
+    });
+
     //report lesson api
     app.post('/lessons/report', async (req, res) => {
       const report = {
