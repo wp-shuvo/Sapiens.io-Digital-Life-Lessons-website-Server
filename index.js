@@ -417,6 +417,120 @@ async function run() {
       res.send(result);
     });
 
+    // Admin overview
+
+    app.get('/admin/overview', async (req, res) => {
+      try {
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+
+        const [
+          todayNewLessonsAgg,
+          mostActiveContributors,
+          lessonGrowth,
+          userGrowth,
+        ] = await Promise.all([
+          lessonsCollection
+            .aggregate([
+              {
+                $addFields: {
+                  created: { $toDate: '$createdAt' },
+                },
+              },
+              {
+                $match: {
+                  created: { $gte: todayStart },
+                },
+              },
+              {
+                $count: 'total',
+              },
+            ])
+            .toArray(),
+
+          // active users
+          usersCollection
+            .aggregate([
+              {
+                $lookup: {
+                  from: 'lessons',
+                  localField: 'email',
+                  foreignField: 'authorEmail',
+                  as: 'lessons',
+                },
+              },
+              {
+                $addFields: {
+                  lessonCount: { $size: '$lessons' },
+                },
+              },
+              { $sort: { lessonCount: -1 } },
+              { $limit: 5 },
+              {
+                $project: {
+                  name: 1,
+                  email: 1,
+                  lessonCount: 1,
+                },
+              },
+            ])
+            .toArray(),
+
+          // Lesson growth
+          lessonsCollection
+            .aggregate([
+              { $match: { createdAt: { $exists: true } } },
+              {
+                $addFields: {
+                  day: {
+                    $dateToString: {
+                      format: '%Y-%m-%d',
+                      date: { $toDate: '$createdAt' },
+                    },
+                  },
+                },
+              },
+              { $group: { _id: '$day', total: { $sum: 1 } } },
+              { $sort: { _id: 1 } },
+            ])
+            .toArray(),
+
+          // User growth
+          usersCollection
+            .aggregate([
+              { $match: { createdAt: { $exists: true } } },
+              {
+                $addFields: {
+                  day: {
+                    $dateToString: {
+                      format: '%Y-%m-%d',
+                      date: { $toDate: '$createdAt' },
+                    },
+                  },
+                },
+              },
+              { $group: { _id: '$day', total: { $sum: 1 } } },
+              { $sort: { _id: 1 } },
+            ])
+            .toArray(),
+        ]);
+
+        const todayNewLessons = todayNewLessonsAgg[0]?.total || 0;
+
+        res.send({
+          todayNewLessons,
+          mostActiveContributors,
+          graphs: {
+            lessonGrowth,
+            userGrowth,
+          },
+        });
+      } catch (err) {
+        console.error(err);
+        res.send({ error: 'Failed to load admin analytics' });
+      }
+    });
+
     app.get('/dashboard/activity', async (req, res) => {
       const { email } = req.query;
 
@@ -431,7 +545,7 @@ async function run() {
 
             {
               $addFields: {
-                created: { $toDate: '$createdAt' }, // convert safely
+                created: { $toDate: '$createdAt' },
               },
             },
 
