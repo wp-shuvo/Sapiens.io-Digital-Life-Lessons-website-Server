@@ -360,6 +360,63 @@ async function run() {
       res.send(result);
     });
 
+    // get only reported lessons (admin)
+    app.get('/admin/reported-lessons', async (req, res) => {
+      try {
+        const lessons = await lessonsCollection
+          .aggregate([
+            {
+              $addFields: {
+                lessonIdStr: { $toString: '$_id' },
+              },
+            },
+            {
+              $lookup: {
+                from: 'lessonReports',
+                localField: 'lessonIdStr',
+                foreignField: 'lessonId',
+                as: 'reports',
+              },
+            },
+            {
+              $addFields: {
+                reportCount: { $size: '$reports' },
+              },
+            },
+            {
+              $match: {
+                reportCount: { $gt: 0 },
+              },
+            },
+            {
+              $project: {
+                reports: 0,
+                lessonIdStr: 0,
+              },
+            },
+          ])
+          .toArray();
+
+        res.send(lessons);
+      } catch (err) {
+        res.send({ error: 'Failed to load reported lessons' });
+      }
+    });
+
+    // get all reports of a lesson
+    app.get('/admin/reported-lessons/:id', async (req, res) => {
+      const lessonId = req.params.id;
+      const result = await reportsCollection.find({ lessonId }).toArray();
+      res.send(result);
+    });
+
+    // ignore reports
+    app.delete('/admin/reported-lessons/:id/ignore', async (req, res) => {
+      const lessonId = req.params.id;
+      const result = await reportsCollection.deleteMany({ lessonId });
+      res.send(result);
+    });
+
     app.get('/dashboard/activity', async (req, res) => {
       const { email } = req.query;
 
