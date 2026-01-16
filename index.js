@@ -203,6 +203,18 @@ async function run() {
       }
     });
 
+    //featured lessons
+
+    app.get('/lessons/featured', async (req, res) => {
+      const query = { isFeatured: true, privacy: 'Public' };
+      const result = await lessonsCollection
+        .find(query)
+        .sort({ createdAt: -1 })
+        .limit(6)
+        .toArray();
+      res.send(result);
+    });
+
     //get one lesson by id
     app.get('/lessons/:id', async (req, res) => {
       const id = req.params.id;
