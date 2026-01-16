@@ -56,9 +56,30 @@ async function run() {
       res.send(result);
     });
 
-    //get all users
     app.get('/users', async (req, res) => {
-      const result = await usersCollection.find().toArray();
+      const result = await usersCollection
+        .aggregate([
+          {
+            $lookup: {
+              from: 'lessons',
+              localField: 'email',
+              foreignField: 'authorEmail',
+              as: 'userLessons',
+            },
+          },
+          {
+            $addFields: {
+              lessonCount: { $size: '$userLessons' },
+            },
+          },
+          {
+            $project: {
+              userLessons: 0,
+            },
+          },
+        ])
+        .toArray();
+
       res.send(result);
     });
 
@@ -78,10 +99,36 @@ async function run() {
       res.send({ role: user?.role || 'user' });
     });
 
+    //update user role
+    app.patch('/admin/users/:id/role', async (req, res) => {
+      const id = req.params.id;
+      const role = req.body.role;
+      const query = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $set: {
+          role: role,
+        },
+      };
+      const result = await usersCollection.updateOne(query, updateDoc);
+      res.send(result);
+    });
+
+    //delete user
+    app.delete('/admin/users/:id', async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await usersCollection.deleteOne(query);
+      res.send(result);
+    });
+
     //API for lesson api
     //post lesson api
     app.post('/lessons', async (req, res) => {
-      const lesson = req.body;
+      const lesson = {
+        ...req.body,
+        isFeatured: false,
+        isReviewed: false,
+      };
       const lessonsCollection = db.collection('lessons');
       const result = await lessonsCollection.insertOne(lesson);
       res.send(result);
@@ -115,6 +162,44 @@ async function run() {
         res.send(filteredLessons);
       } catch (error) {
         res.send({ error: 'Failed to fetch lessons' });
+      }
+    });
+
+    app.get('/admin/lessons', async (req, res) => {
+      try {
+        const lessons = await lessonsCollection
+          .aggregate([
+            {
+              $addFields: {
+                lessonIdStr: { $toString: '$_id' },
+              },
+            },
+            {
+              $lookup: {
+                from: 'lessonReports',
+                localField: 'lessonIdStr',
+                foreignField: 'lessonId',
+                as: 'reports',
+              },
+            },
+            {
+              $addFields: {
+                reportCount: { $size: '$reports' },
+              },
+            },
+            {
+              $project: {
+                reports: 0,
+                lessonIdStr: 0,
+              },
+            },
+          ])
+          .toArray();
+
+        res.send(lessons);
+      } catch (err) {
+        console.error(err);
+        res.status(500).send({ error: 'Failed to fetch lessons' });
       }
     });
 
