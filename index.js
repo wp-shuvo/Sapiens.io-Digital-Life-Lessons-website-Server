@@ -23,7 +23,7 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-    // await client.connect();
+    await client.connect();
 
     const db = client.db('sapiensDB');
     const usersCollection = db.collection('users');
@@ -232,60 +232,6 @@ async function run() {
         .find(query)
         .sort({ createdAt: -1 })
         .toArray();
-      res.send(result);
-    });
-
-    // Most Saved Lessons
-
-    app.get('/lessons/most-saved-lessons', async (req, res) => {
-      const result = await usersCollection
-        .aggregate([
-          { $match: { savedLessons: { $exists: true, $ne: [] } } },
-
-          { $unwind: '$savedLessons' },
-
-          {
-            $group: {
-              _id: '$savedLessons',
-              totalSaves: { $sum: 1 },
-            },
-          },
-
-          { $sort: { totalSaves: -1 } },
-          { $limit: 5 },
-
-          {
-            $addFields: {
-              lessonObjectId: { $toObjectId: '$_id' },
-            },
-          },
-
-          {
-            $lookup: {
-              from: 'lessons',
-              localField: 'lessonObjectId',
-              foreignField: '_id',
-              as: 'lesson',
-            },
-          },
-
-          { $unwind: '$lesson' },
-
-          {
-            $project: {
-              _id: 0,
-              lessonId: '$_id',
-              totalSaves: 1,
-              title: '$lesson.title',
-              image: '$lesson.image',
-              authorName: '$lesson.authorName',
-              authorEmail: '$lesson.authorEmail',
-              createdAt: '$lesson.createdAt',
-            },
-          },
-        ])
-        .toArray();
-
       res.send(result);
     });
 
@@ -681,8 +627,8 @@ async function run() {
   } finally {
   }
   // Send a ping to confirm a successful connection
-  // await client.db('admin').command({ ping: 1 });
-  // console.log('Pinged your deployment. You successfully connected to MongoDB!');
+  await client.db('admin').command({ ping: 1 });
+  console.log('Pinged your deployment. You successfully connected to MongoDB!');
 }
 run().catch(console.dir);
 
