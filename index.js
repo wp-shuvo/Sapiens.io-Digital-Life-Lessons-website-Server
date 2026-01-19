@@ -468,8 +468,9 @@ async function run() {
               { $limit: 5 },
               {
                 $project: {
-                  name: 1,
+                  displayName: 1,
                   email: 1,
+                  photoURL: 1,
                   lessonCount: 1,
                 },
               },
