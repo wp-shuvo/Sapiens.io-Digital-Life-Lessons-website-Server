@@ -235,6 +235,60 @@ async function run() {
       res.send(result);
     });
 
+    // Most Saved Lessons
+
+    app.get('/lessons/most-saved-lessons', async (req, res) => {
+      const result = await usersCollection
+        .aggregate([
+          { $match: { savedLessons: { $exists: true, $ne: [] } } },
+
+          { $unwind: '$savedLessons' },
+
+          {
+            $group: {
+              _id: '$savedLessons',
+              totalSaves: { $sum: 1 },
+            },
+          },
+
+          { $sort: { totalSaves: -1 } },
+          { $limit: 5 },
+
+          {
+            $addFields: {
+              lessonObjectId: { $toObjectId: '$_id' },
+            },
+          },
+
+          {
+            $lookup: {
+              from: 'lessons',
+              localField: 'lessonObjectId',
+              foreignField: '_id',
+              as: 'lesson',
+            },
+          },
+
+          { $unwind: '$lesson' },
+
+          {
+            $project: {
+              _id: 0,
+              lessonId: '$_id',
+              totalSaves: 1,
+              title: '$lesson.title',
+              image: '$lesson.image',
+              authorName: '$lesson.authorName',
+              authorEmail: '$lesson.authorEmail',
+              createdAt: '$lesson.createdAt',
+            },
+          },
+        ])
+        .toArray();
+
+      res.send(result);
+    });
+
     //get related lessons api
     app.get('/lessons/related/:id', async (req, res) => {
       const lesson = await lessonsCollection.findOne({
